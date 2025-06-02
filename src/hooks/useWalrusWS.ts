@@ -5,7 +5,7 @@ import type {
   MegaChatWebSocketMessage,
   ChatMessage,
   MegaChatMessage
-} from '@/lib/ws/types';
+} from '@/lib/ws/types.ts';
 
 const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000';
 
