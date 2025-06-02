@@ -5,7 +5,9 @@
 
 import type { components } from './types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.dev.scai.scalecapacity.com';
+// Temporarily hardcode the API URL since environment variables aren't working in Amplify
+const API_BASE_URL = 'https://api.dev.scai.scalecapacity.com';
+// const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.dev.scai.scalecapacity.com';
 
 // Error types from the v2 API envelope
 export interface ApiError {
