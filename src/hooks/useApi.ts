@@ -3,7 +3,8 @@ import {
   DocumentsService, 
   AgentCardsService, 
   WalrusAgentService,
-  ToolsService, 
+  ToolsService,
+  ChatService,
   SqliteService, 
   ModelsService
 } from '@/lib/api/client';
