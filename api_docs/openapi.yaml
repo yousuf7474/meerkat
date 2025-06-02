@@ -1,0 +1,1243 @@
+openapi: 3.1.0
+info:
+  title: Walrus API
+  description: Multi-Agent RAG System with Amazon Bedrock, DynamoDB, OpenSearch, and enhanced multi-agent orchestration
+  version: 2.0.0
+servers:
+  - url: http://localhost:8000
+    description: Development server
+  - url: https://api.walrus.ai
+    description: Production server
+paths:
+  # Document Management APIs
+  /v1/documents/:
+    post:
+      tags: [documents]
+      summary: Upload Document
+      description: Upload a document and create embeddings
+      operationId: upload_document_v1_documents__post
+      parameters:
+        - name: content-length
+          in: header
+          required: true
+          schema:
+            type: integer
+            title: Content-Length
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required: [file]
+      responses:
+        '201':
+          description: Document uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  document_id:
+                    type: string
+                    format: uuid
+                  filename:
+                    type: string
+                  chunks_created:
+                    type: integer
+                  total_tokens:
+                    type: integer
+                  status:
+                    type: string
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags: [documents]
+      summary: List Documents
+      description: List all documents with their basic information
+      operationId: list_documents_v1_documents__get
+      parameters:
+        - name: document_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [file_upload, web_crawl]
+      responses:
+        '200':
+          description: List of documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DocumentMetadata'
+
+  /v1/documents/{document_id}:
+    get:
+      tags: [documents]
+      summary: Get Document Info
+      description: Get metadata and basic stats for a document
+      operationId: get_document_info_v1_documents__document_id__get
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Document information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentMetadata'
+    patch:
+      tags: [documents]
+      summary: Update Document
+      description: Replace a document and re-index vectors
+      operationId: update_document_v1_documents__document_id__patch
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: content-length
+          in: header
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required: [file]
+      responses:
+        '200':
+          description: Document updated successfully
+    delete:
+      tags: [documents]
+      summary: Delete Document
+      description: Delete a document and its vectors
+      operationId: delete_document_v1_documents__document_id__delete
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Document deleted successfully
+
+  /v1/documents/{document_id}/status:
+    get:
+      tags: [documents]
+      summary: Get Document Processing Status
+      description: Get real-time processing status for a document
+      operationId: get_document_status_v1_documents__document_id__status_get
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Document processing status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  processing_status:
+                    type: string
+                    enum: [processing, completed, failed]
+                  processing_step:
+                    type: string
+                  progress_percentage:
+                    type: integer
+                    minimum: 0
+                    maximum: 100
+                  status_message:
+                    type: string
+                  updated_at:
+                    type: string
+                    format: date-time
+                  status_metadata:
+                    type: object
+
+  /v1/documents/crawl:
+    post:
+      tags: [documents]
+      summary: Crawl Website
+      description: Crawl a website and index its content as documents
+      operationId: crawl_website_v1_documents_crawl_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebCrawlRequest'
+        required: true
+      responses:
+        '201':
+          description: Website crawling initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebCrawlResponse'
+
+  /v1/documents/website/{document_id}:
+    delete:
+      tags: [documents]
+      summary: Delete Crawled Website
+      description: Delete a crawled website and its vectors by document ID
+      operationId: delete_crawled_website_v1_documents_website__document_id__delete
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Website deleted successfully
+
+  # Chat APIs
+  /v1/chat/:
+    post:
+      tags: [chat]
+      summary: Chat with AI Assistant
+      description: Chat endpoint with optional streaming and RAG context
+      operationId: chat_v1_chat__post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+        required: true
+      responses:
+        '200':
+          description: Chat response (streaming or complete)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+            text/event-stream:
+              schema:
+                type: string
+                description: Server-sent events for streaming
+
+  /v1/chat/conversations/{user_id}:
+    get:
+      tags: [chat]
+      summary: Get User Conversations
+      description: Get all conversations for a user
+      operationId: get_user_conversations_v1_chat_conversations__user_id__get
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: User conversations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id:
+                    type: string
+                  conversations:
+                    type: array
+                    items:
+                      type: object
+                  total:
+                    type: integer
+
+  /v1/chat/conversations/{user_id}/{conversation_id}/history:
+    get:
+      tags: [chat]
+      summary: Get Conversation History
+      description: Get conversation history (messages)
+      operationId: get_conversation_history_v1_chat_conversations__user_id___conversation_id__history_get
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: conversation_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Conversation history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conversation_id:
+                    type: string
+                  user_id:
+                    type: string
+                  messages:
+                    type: array
+                    items:
+                      type: object
+
+  # WalrusAgent Management APIs
+  /v1/agents/walrus:
+    post:
+      tags: [agents]
+      summary: Create WalrusAgent
+      description: Create a new WalrusAgent with generated description
+      operationId: create_walrus_agent_v1_agents_walrus_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWalrusAgentRequest'
+        required: true
+      responses:
+        '201':
+          description: WalrusAgent created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WalrusAgentResponse'
+    get:
+      tags: [agents]
+      summary: List WalrusAgents
+      description: List all WalrusAgents
+      operationId: list_walrus_agents_v1_agents_walrus_get
+      responses:
+        '200':
+          description: List of WalrusAgents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WalrusAgentResponse'
+
+  /v1/agents/walrus/{agent_id}:
+    get:
+      tags: [agents]
+      summary: Get WalrusAgent
+      description: Get a specific WalrusAgent by ID
+      operationId: get_walrus_agent_v1_agents_walrus__agent_id__get
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: WalrusAgent details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WalrusAgentResponse'
+    put:
+      tags: [agents]
+      summary: Update WalrusAgent
+      description: Update an existing WalrusAgent
+      operationId: update_walrus_agent_v1_agents_walrus__agent_id__put
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWalrusAgentRequest'
+        required: true
+      responses:
+        '200':
+          description: WalrusAgent updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WalrusAgentResponse'
+    delete:
+      tags: [agents]
+      summary: Delete WalrusAgent
+      description: Delete a WalrusAgent
+      operationId: delete_walrus_agent_v1_agents_walrus__agent_id__delete
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: WalrusAgent deleted successfully
+
+  /v1/agents/walrus/search:
+    post:
+      tags: [agents]
+      summary: Search WalrusAgents
+      description: Search WalrusAgents using Claude-based selection
+      operationId: search_walrus_agents_v1_agents_walrus_search_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchAgentCardsRequest'
+        required: true
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchAgentCardsResponse'
+
+  # Legacy Agent Card APIs (for UI compatibility)
+  /v1/agents/cards:
+    post:
+      tags: [agents]
+      summary: Create Agent Card (Legacy)
+      description: Create a new agent card (legacy endpoint for UI compatibility)
+      operationId: create_agent_card_v1_agents_cards_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAgentCardRequest'
+        required: true
+      responses:
+        '201':
+          description: Agent card created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentCardResponse'
+    get:
+      tags: [agents]
+      summary: List Agent Cards (Legacy)
+      description: List agent cards with optional filtering
+      operationId: list_agent_cards_v1_agents_cards_get
+      parameters:
+        - name: status_filter
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [active, inactive, draft]
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+        - name: last_evaluated_key
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of agent cards
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentCardListResponse'
+
+  /v1/agents/tools:
+    get:
+      tags: [agents]
+      summary: List Available Tools
+      description: List all available tools that can be assigned to agents
+      operationId: list_available_tools_v1_agents_tools_get
+      responses:
+        '200':
+          description: List of available tools
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    description:
+                      type: string
+                    category:
+                      type: string
+                    examples:
+                      type: array
+                      items:
+                        type: string
+
+  /v1/agents/sources:
+    get:
+      tags: [agents]
+      summary: List Available Sources
+      description: List all available sources that can be assigned to agents
+      operationId: list_available_sources_v1_agents_sources_get
+      responses:
+        '200':
+          description: List of available sources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    source_type:
+                      type: string
+                    description:
+                      type: string
+                    capabilities:
+                      type: array
+                      items:
+                        type: string
+
+  # Mega Chat APIs
+  /v1/mega_chat/:
+    post:
+      tags: [mega_chat]
+      summary: Execute Mega Chat
+      description: Run complex queries using multiple specialized agents with automatic selection and synthesis
+      operationId: mega_chat_v1_mega_chat__post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MegaChatRequest'
+        required: true
+      responses:
+        '200':
+          description: Mega chat response (streaming or complete)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MegaChatResponse'
+            text/event-stream:
+              schema:
+                type: string
+                description: Server-sent events for streaming
+
+  /v1/mega_chat/sessions/{session_id}/status:
+    get:
+      tags: [mega_chat]
+      summary: Get Session Status
+      description: Get status of a specific mega chat session
+      operationId: get_session_status_v1_mega_chat_sessions__session_id__status_get
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  session_id:
+                    type: string
+                  status:
+                    type: string
+                    enum: [active, completed, failed]
+                  created_at:
+                    type: string
+                    format: date-time
+                  completed_at:
+                    type: string
+                    format: date-time
+                  agents_used:
+                    type: integer
+                  total_time_ms:
+                    type: number
+                  success:
+                    type: boolean
+
+  /v1/mega_chat/health:
+    get:
+      tags: [mega_chat]
+      summary: Mega Chat Health Check
+      description: Check the health and status of the multi-agent system
+      operationId: health_check_v1_mega_chat_health_get
+      responses:
+        '200':
+          description: Health status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, degraded, unhealthy]
+                  services:
+                    type: object
+                  active_sessions:
+                    type: integer
+                  total_executions:
+                    type: integer
+
+  # SQLite Management APIs
+  /v1/sqlite/tables:
+    get:
+      tags: [sqlite]
+      summary: Get SQLite Tables
+      description: Get information about all SQLite tables
+      operationId: get_sqlite_tables_v1_sqlite_tables_get
+      responses:
+        '200':
+          description: List of SQLite tables
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TableInfo'
+
+  /v1/sqlite/tables/{table_name}:
+    get:
+      tags: [sqlite]
+      summary: Get Table Info
+      description: Get detailed information about a specific table
+      operationId: get_table_info_v1_sqlite_tables__table_name__get
+      parameters:
+        - name: table_name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Table information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TableInfo'
+
+  /v1/sqlite/query:
+    post:
+      tags: [sqlite]
+      summary: Execute SQL Query
+      description: Execute a SQL query and return results
+      operationId: execute_query_v1_sqlite_query_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+        required: true
+      responses:
+        '200':
+          description: Query results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+
+  # Models APIs
+  /v1/models/:
+    get:
+      tags: [models]
+      summary: Get Available Models
+      description: Get information about available AI models
+      operationId: get_models_v1_models__get
+      responses:
+        '200':
+          description: List of available models
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ModelInfo'
+
+  /v1/models/{model_id}:
+    get:
+      tags: [models]
+      summary: Get Model Info
+      description: Get information about a specific model
+      operationId: get_model_v1_models__model_id__get
+      parameters:
+        - name: model_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Model information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelInfo'
+
+  # Health APIs
+  /:
+    get:
+      summary: Root
+      description: Root endpoint with API information
+      operationId: root__get
+      responses:
+        '200':
+          description: API information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  version:
+                    type: string
+                  status:
+                    type: string
+                  endpoints:
+                    type: object
+                  features:
+                    type: array
+                    items:
+                      type: string
+
+  /health:
+    get:
+      summary: Health Check
+      description: Health check endpoint
+      operationId: health_check_health_get
+      responses:
+        '200':
+          description: Health status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  version:
+                    type: string
+
+components:
+  schemas:
+    # Document Schemas
+    DocumentMetadata:
+      type: object
+      properties:
+        document_id:
+          type: string
+          format: uuid
+        document_type:
+          type: string
+          enum: [file_upload, web_crawl]
+        created_at:
+          type: string
+          format: date-time
+        chunks_created:
+          type: integer
+        total_tokens:
+          type: integer
+        status:
+          type: string
+        filename:
+          type: string
+        file_type:
+          type: string
+        url:
+          type: string
+        crawl_depth:
+          type: integer
+        crawl_pages:
+          type: integer
+
+    WebCrawlRequest:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+          maxLength: 2083
+          minLength: 1
+        max_depth:
+          type: integer
+          minimum: 1
+          maximum: 5
+          default: 1
+          description: Maximum crawling depth (1=root only, 2=root+links, 3+=recursive)
+        max_pages:
+          type: integer
+          minimum: 1
+          maximum: 10000
+          default: 5
+          description: Maximum number of pages to crawl (supports up to 10,000 pages)
+      required: [url]
+
+    WebCrawlResponse:
+      type: object
+      properties:
+        document_id:
+          type: string
+          format: uuid
+        url:
+          type: string
+        chunks_created:
+          type: integer
+        total_tokens:
+          type: integer
+        crawl_depth:
+          type: integer
+        crawl_pages:
+          type: integer
+        status:
+          type: string
+
+    # Chat Schemas
+    ChatRequest:
+      type: object
+      properties:
+        query:
+          type: string
+          description: The user's chat message or question
+          minLength: 1
+          maxLength: 4000
+        session_id:
+          type: string
+          description: Unique session identifier for conversation tracking
+          pattern: '^[a-zA-Z0-9_-]+$'
+        retrieval_k:
+          type: integer
+          description: Number of relevant context chunks to retrieve
+          minimum: 1
+          maximum: 20
+          default: 8
+        retrieval_filter:
+          type: object
+          description: Optional filters for context retrieval
+        stream:
+          type: boolean
+          description: Whether to stream the response or return complete response
+          default: true
+      required: [query, session_id]
+
+    ChatResponse:
+      type: object
+      properties:
+        response:
+          type: string
+        session_id:
+          type: string
+        metadata:
+          type: object
+      required: [response, session_id]
+
+    # WalrusAgent Schemas
+    CreateWalrusAgentRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique agent ID
+        name:
+          type: string
+          description: Human-readable agent name
+        sqlite_tables:
+          type: array
+          items:
+            type: string
+          description: SQLite tables (≤ 4)
+          maxItems: 4
+        docs:
+          type: array
+          items:
+            type: string
+          description: Vector-store doc IDs
+        websites:
+          type: array
+          items:
+            type: string
+          description: Crawled root URLs
+        api_calls:
+          type: array
+          items:
+            type: string
+          description: External tool names (≤ 2)
+          maxItems: 2
+      required: [id, name]
+
+    UpdateWalrusAgentRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Human-readable agent name
+        sqlite_tables:
+          type: array
+          items:
+            type: string
+          description: SQLite tables (≤ 4)
+          maxItems: 4
+        docs:
+          type: array
+          items:
+            type: string
+          description: Vector-store doc IDs
+        websites:
+          type: array
+          items:
+            type: string
+          description: Crawled root URLs
+        api_calls:
+          type: array
+          items:
+            type: string
+          description: External tool names (≤ 2)
+          maxItems: 2
+
+    WalrusAgentResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        sqlite_tables:
+          type: array
+          items:
+            type: string
+        docs:
+          type: array
+          items:
+            type: string
+        websites:
+          type: array
+          items:
+            type: string
+        api_calls:
+          type: array
+          items:
+            type: string
+        description:
+          type: string
+          description: Generated 250-word description
+
+    # Legacy Agent Card Schemas
+    CreateAgentCardRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        allowed_tools:
+          type: array
+          items:
+            type: string
+        allowed_sources:
+          type: array
+          items:
+            type: string
+        config:
+          type: object
+        tags:
+          type: array
+          items:
+            type: string
+        priority:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 1
+        created_by:
+          type: string
+      required: [name, description]
+
+    AgentCardResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        allowed_tools:
+          type: array
+          items:
+            type: string
+        allowed_sources:
+          type: array
+          items:
+            type: string
+        config:
+          type: object
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        created_by:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        priority:
+          type: integer
+        metadata:
+          type: object
+
+    AgentCardListResponse:
+      type: object
+      properties:
+        cards:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentCardResponse'
+        total_count:
+          type: integer
+        last_evaluated_key:
+          type: object
+
+    SearchAgentCardsRequest:
+      type: object
+      properties:
+        query:
+          type: string
+          description: Search query
+        k:
+          type: integer
+          default: 5
+          description: Number of results
+        score_threshold:
+          type: number
+          default: 0.75
+          description: Minimum similarity score
+        status_filter:
+          type: string
+          enum: [active, inactive]
+          description: Filter by status
+      required: [query]
+
+    SearchAgentCardsResponse:
+      type: object
+      properties:
+        candidates:
+          type: array
+          items:
+            type: object
+        total_found:
+          type: integer
+        query:
+          type: string
+
+    # Mega Chat Schemas
+    MegaChatRequest:
+      type: object
+      properties:
+        query:
+          type: string
+          description: User query to process
+          minLength: 1
+          maxLength: 4000
+        agent_ids:
+          type: array
+          items:
+            type: string
+          description: Specific agent IDs to use (null for auto-selection)
+        stream:
+          type: boolean
+          description: Enable streaming response
+          default: true
+        max_agents:
+          type: integer
+          description: Maximum agents to use (1-5)
+          minimum: 1
+          maximum: 5
+          default: 3
+        strategy:
+          type: string
+          description: Selection strategy
+          enum: [auto, single_best, parallel]
+          default: auto
+        synthesis_strategy:
+          type: string
+          description: Synthesis strategy
+          enum: [auto, merge, best, consensus]
+          default: auto
+      required: [query]
+
+    MegaChatResponse:
+      type: object
+      properties:
+        session_id:
+          type: string
+        final_answer:
+          type: string
+        agents_used:
+          type: array
+          items:
+            type: object
+        tools_used:
+          type: array
+          items:
+            type: string
+        sources_used:
+          type: array
+          items:
+            type: string
+        execution_summary:
+          type: object
+        total_time_ms:
+          type: number
+
+    # SQLite Schemas
+    TableInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        columns:
+          type: array
+          items:
+            $ref: '#/components/schemas/ColumnInfo'
+        row_count:
+          type: integer
+        created_at:
+          type: string
+
+    ColumnInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        nullable:
+          type: boolean
+        default:
+          type: string
+        primary_key:
+          type: boolean
+
+    QueryRequest:
+      type: object
+      properties:
+        query:
+          type: string
+          description: SQL query to execute
+        limit:
+          type: integer
+          default: 100
+          minimum: 1
+          maximum: 1000
+      required: [query]
+
+    QueryResponse:
+      type: object
+      properties:
+        columns:
+          type: array
+          items:
+            type: string
+        rows:
+          type: array
+          items:
+            type: array
+        row_count:
+          type: integer
+        total_count:
+          type: integer
+
+    # Model Schemas
+    ModelInfo:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        provider:
+          type: string
+        type:
+          type: string
+        max_tokens:
+          type: integer
+        description:
+          type: string
+        capabilities:
+          type: array
+          items:
+            type: string
+
+    # Error Schemas
+    HTTPValidationError:
+      type: object
+      properties:
+        detail:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationError'
+
+    ValidationError:
+      type: object
+      properties:
+        loc:
+          type: array
+          items:
+            anyOf:
+              - type: string
+              - type: integer
+        msg:
+          type: string
+        type:
+          type: string
+      required: [loc, msg, type]

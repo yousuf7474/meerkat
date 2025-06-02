@@ -1,0 +1,333 @@
+asyncapi: 3.0.0
+info:
+  title: Walrus Streaming API
+  version: 2.0.0
+  description: WebSocket endpoints for real-time chat and multi-agent communication
+servers:
+  development:
+    host: localhost:8000
+    protocol: ws
+    description: Development WebSocket server
+  production:
+    host: api.walrus.ai
+    protocol: wss
+    description: Production WebSocket server
+channels:
+  '/ws/chat/{session_id}':
+    address: '/ws/chat/{session_id}'
+    parameters:
+      session_id:
+        description: Unique session identifier for the chat
+        schema:
+          type: string
+          pattern: '^[a-zA-Z0-9_-]+$'
+          example: 'user_123_session_001'
+    messages:
+      ChatMessage:
+        name: ChatMessage
+        title: Chat Message
+        contentType: application/json
+        payload:
+          type: object
+          properties:
+            query:
+              type: string
+              description: The user's chat message
+              minLength: 1
+              maxLength: 4000
+              example: "What is artificial intelligence?"
+            retrieval_k:
+              type: integer
+              description: Number of context chunks to retrieve
+              minimum: 1
+              maximum: 20
+              default: 8
+            retrieval_filter:
+              type: object
+              description: Optional filters for context retrieval
+              example:
+                document_type: "web_crawl"
+                source: "example.com"
+          required: [query]
+      ChatResponse:
+        name: ChatResponse
+        title: Chat Response
+        contentType: application/json
+        payload:
+          oneOf:
+            - type: object
+              title: Chat Chunk
+              properties:
+                type:
+                  type: string
+                  enum: [chunk]
+                content:
+                  type: string
+                  description: Streaming content chunk
+            - type: object
+              title: Chat Complete
+              properties:
+                type:
+                  type: string
+                  enum: [complete]
+                metadata:
+                  type: object
+                  properties:
+                    session_id:
+                      type: string
+                    status:
+                      type: string
+                      enum: [completed, failed]
+                    latency_ms:
+                      type: number
+            - type: object
+              title: Chat Error
+              properties:
+                type:
+                  type: string
+                  enum: [error]
+                error:
+                  type: string
+                  description: Error message
+  '/v1/mega_chat/ws/{session_id}':
+    address: '/v1/mega_chat/ws/{session_id}'
+    parameters:
+      session_id:
+        description: Unique session identifier for the mega chat
+        schema:
+          type: string
+          pattern: '^[a-zA-Z0-9_-]+$'
+          example: 'mega_session_456'
+    messages:
+      MegaChatMessage:
+        name: MegaChatMessage
+        title: Mega Chat Message
+        contentType: application/json
+        payload:
+          type: object
+          properties:
+            query:
+              type: string
+              description: User query for multi-agent processing
+              minLength: 1
+              maxLength: 4000
+              example: "Explain machine learning algorithms"
+            agent_ids:
+              type: array
+              items:
+                type: string
+              description: Specific agent IDs to use (optional)
+              example: ["agent_123", "agent_456"]
+            max_agents:
+              type: integer
+              description: Maximum number of agents to use
+              minimum: 1
+              maximum: 5
+              default: 3
+            strategy:
+              type: string
+              description: Agent selection strategy
+              enum: [auto, single_best, parallel]
+              default: "auto"
+            synthesis_strategy:
+              type: string
+              description: Response synthesis strategy
+              enum: [auto, merge, best, consensus]
+              default: "auto"
+          required: [query]
+      MegaChatResponse:
+        name: MegaChatResponse
+        title: Mega Chat Response
+        contentType: application/json
+        payload:
+          oneOf:
+            - type: object
+              title: Status Update
+              properties:
+                type:
+                  type: string
+                  enum: [status]
+                session_id:
+                  type: string
+                timestamp:
+                  type: string
+                  format: date-time
+                data:
+                  type: object
+                  properties:
+                    stage:
+                      type: string
+                      enum: [planning, execution, synthesis]
+                    message:
+                      type: string
+            - type: object
+              title: Planning Complete
+              properties:
+                type:
+                  type: string
+                  enum: [planning_complete]
+                session_id:
+                  type: string
+                timestamp:
+                  type: string
+                  format: date-time
+                data:
+                  type: object
+                  properties:
+                    agents_selected:
+                      type: integer
+                    agents:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                          name:
+                            type: string
+                          score:
+                            type: number
+                    selection_time_ms:
+                      type: number
+                    strategy:
+                      type: string
+            - type: object
+              title: Agent Status
+              properties:
+                type:
+                  type: string
+                  enum: [agent_status]
+                session_id:
+                  type: string
+                timestamp:
+                  type: string
+                  format: date-time
+                data:
+                  type: object
+                  properties:
+                    agent_id:
+                      type: string
+                    status:
+                      type: string
+                      enum: [starting, processing, completed, error]
+                    message:
+                      type: string
+            - type: object
+              title: Execution Complete
+              properties:
+                type:
+                  type: string
+                  enum: [execution_complete]
+                session_id:
+                  type: string
+                timestamp:
+                  type: string
+                  format: date-time
+                data:
+                  type: object
+                  properties:
+                    successful_agents:
+                      type: integer
+                    failed_agents:
+                      type: integer
+                    execution_time_ms:
+                      type: number
+                    tools_used:
+                      type: array
+                      items:
+                        type: string
+                    sources_used:
+                      type: array
+                      items:
+                        type: string
+            - type: object
+              title: Synthesis Complete
+              properties:
+                type:
+                  type: string
+                  enum: [synthesis_complete]
+                session_id:
+                  type: string
+                timestamp:
+                  type: string
+                  format: date-time
+                data:
+                  type: object
+                  properties:
+                    agents_synthesized:
+                      type: integer
+                    synthesis_time_ms:
+                      type: number
+                    token_count:
+                      type: integer
+                    truncated:
+                      type: boolean
+                    strategy:
+                      type: string
+            - type: object
+              title: Final Answer
+              properties:
+                type:
+                  type: string
+                  enum: [final]
+                session_id:
+                  type: string
+                timestamp:
+                  type: string
+                  format: date-time
+                data:
+                  type: object
+                  properties:
+                    answer:
+                      type: string
+                      description: Final synthesized answer
+                    total_time_ms:
+                      type: number
+                    summary:
+                      type: object
+                      description: Execution summary
+            - type: object
+              title: Error
+              properties:
+                type:
+                  type: string
+                  enum: [error]
+                session_id:
+                  type: string
+                timestamp:
+                  type: string
+                  format: date-time
+                data:
+                  type: object
+                  properties:
+                    error:
+                      type: string
+                      description: Error message
+                    stage:
+                      type: string
+                      description: Stage where error occurred
+operations:
+  ws_chat_send:
+    action: send
+    channel:
+      $ref: '#/channels/~1ws~1chat~1{session_id}'
+    messages:
+      - $ref: '#/channels/~1ws~1chat~1{session_id}/messages/ChatMessage'
+  ws_chat_receive:
+    action: receive
+    channel:
+      $ref: '#/channels/~1ws~1chat~1{session_id}'
+    messages:
+      - $ref: '#/channels/~1ws~1chat~1{session_id}/messages/ChatResponse'
+  mega_chat_send:
+    action: send
+    channel:
+      $ref: '#/channels/~1v1~1mega_chat~1ws~1{session_id}'
+    messages:
+      - $ref: '#/channels/~1v1~1mega_chat~1ws~1{session_id}/messages/MegaChatMessage'
+  mega_chat_receive:
+    action: receive
+    channel:
+      $ref: '#/channels/~1v1~1mega_chat~1ws~1{session_id}'
+    messages:
+      - $ref: '#/channels/~1v1~1mega_chat~1ws~1{session_id}/messages/MegaChatResponse'
