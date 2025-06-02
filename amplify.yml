@@ -5,10 +5,12 @@ frontend:
       commands:
         # Set Node.js version for consistency
         - nvm use 18
+        # Configure npm cache location
+        - npm config set cache .npm
         # Clear npm cache to avoid issues
         - npm cache clean --force
         # Install dependencies with better caching
-        - npm ci --cache .npm --prefer-offline --no-audit --progress=false
+        - npm ci --prefer-offline --no-audit --progress=false
         # Set up environment variables fallback
         - |
           if [ -z "$NODE_ENV" ]; then
