@@ -86,7 +86,7 @@ export default function ChatPage() {
     setStreamingProgress(0);
 
     try {
-      const response = await fetch(`/v1/mega_chat/`, {
+      const response = await fetch(`https://api.dev.scai.scalecapacity.com/v1/mega_chat/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
