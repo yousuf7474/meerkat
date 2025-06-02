@@ -20,7 +20,7 @@ export type OpenAPIConfig = {
 };
 
 export const OpenAPI: OpenAPIConfig = {
-    BASE: 'https://api.dev.scai.scalecapacity.com',  // Use relative URLs with Vite proxy
+    BASE: import.meta.env.VITE_API_BASE_URL || 'https://api.dev.scai.scalecapacity.com',
     VERSION: '2.0.0',
     WITH_CREDENTIALS: false,
     CREDENTIALS: 'include',

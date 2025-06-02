@@ -5,7 +5,7 @@
 
 import type { components } from './types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.dev.scai.scalecapacity.com';
 
 // Error types from the v2 API envelope
 export interface ApiError {
