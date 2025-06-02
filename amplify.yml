@@ -5,19 +5,16 @@ frontend:
       commands:
         # Set Node.js version for consistency
         - nvm use 18
-        # Configure npm cache location
+        # Configure npm for better performance
         - npm config set cache .npm
-        # Clear npm cache to avoid issues
+        - npm config set fund false
+        - npm config set audit false
+        # Clear any potential cache issues
         - npm cache clean --force
-        # Try npm ci first, fallback to npm install if lock file is out of sync
-        - |
-          if npm ci --prefer-offline --no-audit --progress=false; then
-            echo "npm ci succeeded"
-          else
-            echo "npm ci failed, trying npm install instead"
-            rm -f package-lock.json
-            npm install --prefer-offline --no-audit --progress=false
-          fi
+        # Remove lock file to avoid sync issues and use npm install
+        - rm -f package-lock.json
+        # Install dependencies (this will create a new lock file)
+        - npm install --no-audit --no-fund --progress=false
         # Set up environment variables fallback
         - |
           if [ -z "$NODE_ENV" ]; then
