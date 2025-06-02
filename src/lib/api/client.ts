@@ -27,13 +27,20 @@ async function apiRequest<T>(
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
   
+  console.log(`Making API request to: ${url}`);
+  
   const response = await fetch(url, {
+    mode: 'cors', // Explicitly set CORS mode
+    credentials: 'omit', // Don't send credentials to avoid preflight complexity
     headers: {
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
       ...options.headers,
     },
     ...options,
   });
+
+  console.log(`Response status: ${response.status}`, response.headers);
 
   if (!response.ok) {
     let errorData: ApiError;
