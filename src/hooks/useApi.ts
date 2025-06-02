@@ -7,10 +7,10 @@ import {
   ChatService,
   SqliteService, 
   ModelsService
-} from '@/lib/api/client';
-import { CrawlerService } from '@/lib/api/services/CrawlerService';
-import type { components } from '@/lib/api/types';
-import type { CrawlSiteResponse } from '@/lib/api/services/CrawlerService';
+} from '../lib/api/client';
+import { CrawlerService } from '../lib/api/services/CrawlerService';
+import type { components } from '../lib/api/types';
+import type { CrawlSiteResponse } from '../lib/api/services/CrawlerService';
 
 // Type definitions for better type safety
 type DocumentMetadata = components['schemas']['DocumentMetadata'];

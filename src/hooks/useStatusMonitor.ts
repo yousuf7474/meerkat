@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { DocumentsService, type ApiError } from '@/lib/api/client';
+import { DocumentsService, type ApiError } from '../lib/api/client';
 
 // Import the correct status types from the generated schema
 export type DocumentStatus = {

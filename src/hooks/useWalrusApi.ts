@@ -9,8 +9,8 @@ import {
   SystemService,
   type ApiError,
   type ApiResponse 
-} from '@/lib/api/client';
-import type { components } from '@/lib/api/types';
+} from '../lib/api/client';
+import type { components } from '../lib/api/types';
 
 // Re-export types from the generated schema
 export type Document = components['schemas']['DocumentMetadata'];
